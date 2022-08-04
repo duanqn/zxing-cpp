@@ -1,6 +1,6 @@
 /*
-* Copyright 2019 Axel Waggershauser
-*/
+ * Copyright 2019 Axel Waggershauser
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ReadBarcode.h"
@@ -13,15 +13,16 @@
 
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 namespace ZXing {
 
 class LumImage : public ImageView
 {
 	std::unique_ptr<uint8_t[]> _memory;
-	LumImage(std::unique_ptr<uint8_t[]>&& data, int w, int h)
-		: ImageView(data.get(), w, h, ImageFormat::Lum), _memory(std::move(data))
-	{}
+	LumImage(std::unique_ptr<uint8_t[]>&& data, int w, int h) : ImageView(data.get(), w, h, ImageFormat::Lum), _memory(std::move(data))
+	{
+	}
 
 public:
 	LumImage() : ImageView(nullptr, 0, 0, ImageFormat::Lum) {}
@@ -30,14 +31,14 @@ public:
 	uint8_t* data() { return _memory.get(); }
 };
 
-template<typename P>
+template <typename P>
 static LumImage ExtractLum(const ImageView& iv, P projection)
 {
 	LumImage res(iv.width(), iv.height());
 
 	auto* dst = res.data();
-	for(int y = 0; y < iv.height(); ++y)
-		for(int x = 0, w = iv.width(); x < w; ++x)
+	for (int y = 0; y < iv.height(); ++y)
+		for (int x = 0, w = iv.width(); x < w; ++x)
 			*dst++ = projection(iv.data(x, y));
 
 	return res;
@@ -54,7 +55,7 @@ class LumImagePyramid
 		buffers.emplace_back(siv.width() / N, siv.height() / N);
 		layers.push_back(buffers.back());
 		auto& div = buffers.back();
-		auto* d   = div.data();
+		auto* d = div.data();
 
 		for (int dy = 0; dy < div.height(); ++dy)
 			for (int dx = 0; dx < div.width(); ++dx) {
@@ -93,8 +94,8 @@ ImageView SetupLumImageView(ImageView iv, LumImage& lum, const DecodeHints& hint
 
 	if (hints.binarizer() == Binarizer::GlobalHistogram || hints.binarizer() == Binarizer::LocalAverage) {
 		if (iv.format() != ImageFormat::Lum) {
-			lum = ExtractLum(iv, [r = RedIndex(iv.format()), g = GreenIndex(iv.format()), b = BlueIndex(iv.format())](
-									 const uint8_t* src) { return RGBToLum(src[r], src[g], src[b]); });
+			lum = ExtractLum(iv, [r = RedIndex(iv.format()), g = GreenIndex(iv.format()),
+								  b = BlueIndex(iv.format())](const uint8_t* src) { return RGBToLum(src[r], src[g], src[b]); });
 		} else if (iv.pixStride() != 1) {
 			// GlobalHistogram and LocalAverage need dense line memory layout
 			lum = ExtractLum(iv, [](const uint8_t* src) { return *src; });
@@ -121,25 +122,54 @@ Result ReadBarcode(const ImageView& _iv, const DecodeHints& hints)
 	return FirstOrDefault(ReadBarcodes(_iv, DecodeHints(hints).setMaxNumberOfSymbols(1)));
 }
 
-Results ReadBarcodes(const ImageView& _iv, const DecodeHints& hints)
+Results ReadBarcodes(
+	const ImageView& _iv, const DecodeHints& hints,
+	std::optional<
+		std::reference_wrapper<std::vector<std::vector<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>>>
+		debugInfo,
+	std::optional<std::reference_wrapper<std::vector<std::unique_ptr<OwningBinaryBitmap>>>> bitmap_out,
+	std::optional<std::reference_wrapper<std::vector<std::vector<std::chrono::milliseconds>>>> time)
 {
 	LumImage lum;
 	ImageView iv = SetupLumImageView(_iv, lum, hints);
 	MultiFormatReader reader(hints);
+
+	if (time.has_value()) {
+		auto& metrics = time.value().get();
+		metrics.clear();
+	}
 
 	if (hints.isPure())
 		return {reader.read(*CreateBitmap(hints.binarizer(), iv))};
 
 	LumImagePyramid pyramid(iv, hints.downscaleThreshold() * hints.tryDownscale(), hints.downscaleFactor());
 
+	if (time.has_value()) {
+		auto& metrics = time.value().get();
+		metrics.resize(pyramid.layers.size());
+	}
+
+	if (debugInfo.has_value()) {
+		auto& info = debugInfo.value().get();
+		info.resize(pyramid.layers.size());
+	}
+
 	Results results;
 	int maxSymbols = hints.maxNumberOfSymbols();
-	for (auto&& iv : pyramid.layers) {
+	for (size_t i = 0; i < pyramid.layers.size(); ++i) {
+		auto&& iv = pyramid.layers[i];
 		auto bitmap = CreateBitmap(hints.binarizer(), iv);
 		for (int invert = 0; invert <= static_cast<int>(hints.tryInvert()); ++invert) {
 			if (invert)
 				bitmap->invert();
-			auto rs = reader.readMultiple(*bitmap, maxSymbols);
+			auto rs = reader.readMultiple(
+				*bitmap, maxSymbols,
+				debugInfo.has_value()
+					? std::ref(debugInfo.value().get()[i])
+					: std::optional<
+						std::reference_wrapper<std::vector<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>>{},
+				time.has_value() ? std::ref(time.value().get()[i])
+								 : std::optional<std::reference_wrapper<std::vector<std::chrono::milliseconds>>>{});
 			for (auto& r : rs) {
 				if (iv.width() != _iv.width())
 					r.setPosition(Scale(r.position(), _iv.width() / iv.width()));
@@ -151,11 +181,16 @@ Results ReadBarcodes(const ImageView& _iv, const DecodeHints& hints)
 				}
 			}
 			if (maxSymbols <= 0)
-				return results;
+				break;
 		}
+		if (bitmap_out.has_value()) {
+			bitmap_out.value().get().emplace_back(std::make_unique<OwningBinaryBitmap>(std::move(bitmap)));
+		}
+		if (maxSymbols <= 0)
+			break;
 	}
 
 	return results;
 }
 
-} // ZXing
+} // namespace ZXing

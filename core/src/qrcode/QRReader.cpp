@@ -1,8 +1,8 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-* Copyright 2022 Axel Waggershauser
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ * Copyright 2022 Axel Waggershauser
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "QRReader.h"
@@ -21,7 +21,9 @@
 
 namespace ZXing::QRCode {
 
-Result Reader::decode(const BinaryBitmap& image) const
+Result
+Reader::decode(const BinaryBitmap& image,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 #if 1
 	if (!_hints.isPure())
@@ -48,7 +50,9 @@ Result Reader::decode(const BinaryBitmap& image) const
 				  detectorResult.bits().width() < 21 ? BarcodeFormat::MicroQRCode : BarcodeFormat::QRCode);
 }
 
-Results Reader::decode(const BinaryBitmap& image, int maxSymbols) const
+Results
+Reader::decode(const BinaryBitmap& image, int maxSymbols,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 	auto binImg = image.getBitMatrix();
 	if (binImg == nullptr)
@@ -101,7 +105,6 @@ Results Reader::decode(const BinaryBitmap& image, int maxSymbols) const
 					if (maxSymbols && Size(results) == maxSymbols)
 						break;
 				}
-
 			}
 		}
 	}

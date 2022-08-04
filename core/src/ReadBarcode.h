@@ -1,13 +1,21 @@
 /*
-* Copyright 2019 Axel Waggershauser
-*/
+ * Copyright 2019 Axel Waggershauser
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
+#include "BinaryBitmap.h"
 #include "DecodeHints.h"
 #include "ImageView.h"
 #include "Result.h"
+
+#include <chrono>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <vector>
 
 namespace ZXing {
 
@@ -27,7 +35,12 @@ Result ReadBarcode(const ImageView& buffer, const DecodeHints& hints = {});
  * @param hints  optional DecodeHints to parameterize / speed up decoding
  * @return #Results list of results found, may be empty
  */
-Results ReadBarcodes(const ImageView& buffer, const DecodeHints& hints = {});
+Results ReadBarcodes(
+	const ImageView& buffer, const DecodeHints& hints = {},
+	std::optional<
+		std::reference_wrapper<std::vector<std::vector<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>>>
+		debugInfo = {},
+	std::optional<std::reference_wrapper<std::vector<std::unique_ptr<OwningBinaryBitmap>>>> bitmap_out = {},
+	std::optional<std::reference_wrapper<std::vector<std::vector<std::chrono::milliseconds>>>> time = {});
 
-} // ZXing
-
+} // namespace ZXing

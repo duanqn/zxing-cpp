@@ -159,6 +159,8 @@ set (PUBLIC_HEADERS
 )
 if (BUILD_READERS)
     set (PUBLIC_HEADERS ${PUBLIC_HEADERS}
+        src/BinaryBitmap.h
+        src/BitMatrix.h
         src/Content.h
         src/DecodeHints.h
         src/Error.h

@@ -1,8 +1,8 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-* Copyright 2020 Axel Waggershauser
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ * Copyright 2020 Axel Waggershauser
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ODReader.h"
@@ -52,16 +52,18 @@ Reader::Reader(const DecodeHints& hints) : ZXing::Reader(hints)
 Reader::~Reader() = default;
 
 /**
-* We're going to examine rows from the middle outward, searching alternately above and below the
-* middle, and farther out each time. rowStep is the number of rows between each successive
-* attempt above and below the middle. So we'd scan row middle, then middle - rowStep, then
-* middle + rowStep, then middle - (2 * rowStep), etc.
-* rowStep is bigger as the image is taller, but is always at least 1. We've somewhat arbitrarily
-* decided that moving up and down by about 1/16 of the image is pretty good; we try more of the
-* image if "trying harder".
-*/
-static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, const BinaryBitmap& image,
-						bool tryHarder, bool rotate, bool isPure, int maxSymbols, int minLineCount, bool returnErrors)
+ * We're going to examine rows from the middle outward, searching alternately above and below the
+ * middle, and farther out each time. rowStep is the number of rows between each successive
+ * attempt above and below the middle. So we'd scan row middle, then middle - rowStep, then
+ * middle + rowStep, then middle - (2 * rowStep), etc.
+ * rowStep is bigger as the image is taller, but is always at least 1. We've somewhat arbitrarily
+ * decided that moving up and down by about 1/16 of the image is pretty good; we try more of the
+ * image if "trying harder".
+ */
+static Results
+DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, const BinaryBitmap& image, bool tryHarder, bool rotate, bool isPure,
+		 int maxSymbols, int minLineCount, bool returnErrors,
+		 std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>> debugInfo = {})
 {
 	Results res;
 
@@ -76,9 +78,8 @@ static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, 
 	int middle = height / 2;
 	// TODO: find a better heuristic/parameterization if maxSymbols != 1
 	int rowStep = std::max(1, height / ((tryHarder && !isPure) ? (maxSymbols == 1 ? 256 : 512) : 32));
-	int maxLines = tryHarder ?
-		height :	// Look at the whole image, not just the center
-		15;			// 15 rows spaced 1/32 apart is roughly the middle half of the image
+	int maxLines = tryHarder ? height : // Look at the whole image, not just the center
+					   15;              // 15 rows spaced 1/32 apart is roughly the middle half of the image
 
 	if (isPure)
 		minLineCount = 1;
@@ -88,7 +89,6 @@ static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, 
 	bars.reserve(128); // e.g. EAN-13 has 59 bars/spaces
 
 	for (int i = 0; i < maxLines; i++) {
-
 		// Scanning from the middle out. Determine which row we're looking at next:
 		int rowStepsAboveOrBelow = (i + 1) / 2;
 		bool isAbove = (i & 0x01) == 0; // i.e. is x even?
@@ -112,6 +112,10 @@ static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, 
 		if (!image.getPatternRow(rowNumber, rotate ? 270 : 0, bars))
 			continue;
 
+		if (debugInfo.has_value()) {
+			auto& info = debugInfo.value().get();
+			info[std::make_pair(rowNumber, rotate)] = std::make_pair(bars, false);
+		}
 		// While we have the image data in a PatternRow, it's fairly cheap to reverse it in place to
 		// handle decoding upside down barcodes.
 		// TODO: the DataBarExpanded (stacked) decoder depends on seeing each line from both directions. This
@@ -136,6 +140,10 @@ static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, 
 					Result result = readers[r]->decodePattern(rowNumber, next, decodingState[r]);
 					if (result.isValid() || (returnErrors && result.error())) {
 						result.incrementLineCount();
+						if (debugInfo.has_value()) {
+							auto& info = debugInfo.value().get();
+							info[std::make_pair(rowNumber, rotate)].second = true;
+						}
 						if (upsideDown) {
 							// update position (flip horizontally).
 							auto points = result.position();
@@ -159,8 +167,9 @@ static Results DoDecode(const std::vector<std::unique_ptr<RowReader>>& readers, 
 								auto dTop = maxAbsComponent(other.position().topLeft() - result.position().topLeft());
 								auto dBot = maxAbsComponent(other.position().bottomLeft() - result.position().topLeft());
 								auto points = other.position();
-								if (dTop < dBot || (dTop == dBot && rotate ^ (sumAbsComponent(points[0]) >
-																			  sumAbsComponent(result.position()[0])))) {
+								if (dTop < dBot
+									|| (dTop == dBot
+										&& rotate ^ (sumAbsComponent(points[0]) > sumAbsComponent(result.position()[0])))) {
 									points[0] = result.position()[0];
 									points[1] = result.position()[1];
 								} else {
@@ -211,32 +220,36 @@ out:
 			if (HaveIntersectingBoundingBoxes(a->position(), b->position()))
 				*(a->lineCount() < b->lineCount() ? a : b) = Result();
 
-	//TODO: C++20 res.erase_if()
+	// TODO: C++20 res.erase_if()
 	it = std::remove_if(res.begin(), res.end(), [](auto&& r) { return r.format() == BarcodeFormat::None; });
 	res.erase(it, res.end());
 
 	return res;
 }
 
-Result
-Reader::decode(const BinaryBitmap& image) const
+Result Reader::decode(
+	const BinaryBitmap& image,
+	std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>> debugInfo) const
 {
-	auto result =
-		DoDecode(_readers, image, _hints.tryHarder(), false, _hints.isPure(), 1, _hints.minLineCount(), _hints.returnErrors());
+	auto result = DoDecode(_readers, image, _hints.tryHarder(), false, _hints.isPure(), 1, _hints.minLineCount(),
+						   _hints.returnErrors(), debugInfo);
 
 	if (result.empty() && _hints.tryRotate())
-		result = DoDecode(_readers, image, _hints.tryHarder(), true, _hints.isPure(), 1, _hints.minLineCount(), _hints.returnErrors());
+		result = DoDecode(_readers, image, _hints.tryHarder(), true, _hints.isPure(), 1, _hints.minLineCount(), _hints.returnErrors(),
+						  debugInfo);
 
 	return FirstOrDefault(std::move(result));
 }
 
-Results Reader::decode(const BinaryBitmap& image, int maxSymbols) const
+Results Reader::decode(
+	const BinaryBitmap& image, int maxSymbols,
+	std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>> debugInfo) const
 {
 	auto resH = DoDecode(_readers, image, _hints.tryHarder(), false, _hints.isPure(), maxSymbols, _hints.minLineCount(),
-						 _hints.returnErrors());
+						 _hints.returnErrors(), debugInfo);
 	if ((!maxSymbols || Size(resH) < maxSymbols) && _hints.tryRotate()) {
 		auto resV = DoDecode(_readers, image, _hints.tryHarder(), true, _hints.isPure(), maxSymbols - Size(resH),
-							 _hints.minLineCount(), _hints.returnErrors());
+							 _hints.minLineCount(), _hints.returnErrors(), debugInfo);
 		resH.insert(resH.end(), resV.begin(), resV.end());
 	}
 	return resH;

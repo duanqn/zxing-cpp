@@ -1,7 +1,7 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "MCReader.h"
@@ -17,11 +17,11 @@
 namespace ZXing::MaxiCode {
 
 /**
-* This method detects a code in a "pure" image -- that is, pure monochrome image
-* which contains only an unrotated, unskewed, image of a code, with some white border
-* around it. This is a specialized method that works exceptionally fast in this special
-* case.
-*/
+ * This method detects a code in a "pure" image -- that is, pure monochrome image
+ * which contains only an unrotated, unskewed, image of a code, with some white border
+ * around it. This is a specialized method that works exceptionally fast in this special
+ * case.
+ */
 static BitMatrix ExtractPureBits(const BitMatrix& image)
 {
 	int left, top, width, height;
@@ -33,31 +33,33 @@ static BitMatrix ExtractPureBits(const BitMatrix& image)
 	for (int y = 0; y < BitMatrixParser::MATRIX_HEIGHT; y++) {
 		int iy = top + (y * height + height / 2) / BitMatrixParser::MATRIX_HEIGHT;
 		for (int x = 0; x < BitMatrixParser::MATRIX_WIDTH; x++) {
-			int ix = left + (x * width + width / 2 + (y & 0x01) *  width / 2) / BitMatrixParser::MATRIX_WIDTH;
+			int ix = left + (x * width + width / 2 + (y & 0x01) * width / 2) / BitMatrixParser::MATRIX_WIDTH;
 			if (image.get(ix, iy)) {
 				result.set(x, y);
 			}
 		}
 	}
 
-	//TODO: need to return position info
+	// TODO: need to return position info
 	return result;
 }
 
 Result
-Reader::decode(const BinaryBitmap& image) const
+Reader::decode(const BinaryBitmap& image,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 	auto binImg = image.getBitMatrix();
 	if (binImg == nullptr)
 		return {};
 
-	//TODO: this only works with effectively 'pure' barcodes. Needs proper detector.
+	// TODO: this only works with effectively 'pure' barcodes. Needs proper detector.
 	BitMatrix bits = ExtractPureBits(*binImg);
 	if (bits.empty())
 		return {};
 
 	DecoderResult decRes = Decode(bits);
-	// TODO: before we can meaningfully return a ChecksumError result, we need to check the center for the presence of the finder pattern
+	// TODO: before we can meaningfully return a ChecksumError result, we need to check the center for the presence of the finder
+	// pattern
 	if (!decRes.isValid())
 		return {};
 

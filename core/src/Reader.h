@@ -1,13 +1,19 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
 #include "DecodeHints.h"
 #include "Result.h"
+
+#include <functional>
+#include <map>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace ZXing {
 
@@ -26,13 +32,16 @@ public:
 	explicit Reader(DecodeHints&& hints) = delete;
 	virtual ~Reader() = default;
 
-	virtual Result decode(const BinaryBitmap& image) const = 0;
+	virtual Result decode(const BinaryBitmap& image,
+						  [[maybe_unused]] std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>> debugInfo = {}) const = 0;
 
 	// WARNING: this API is experimental and may change/disappear
-	virtual Results decode(const BinaryBitmap& image, [[maybe_unused]] int maxSymbols) const {
-		auto res = decode(image);
+	virtual Results decode(const BinaryBitmap& image, [[maybe_unused]] int maxSymbols,
+						   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>> debugInfo = {}) const
+	{
+		auto res = decode(image, debugInfo);
 		return res.isValid() || (_hints.returnErrors() && res.format() != BarcodeFormat::None) ? Results{std::move(res)} : Results{};
 	}
 };
 
-} // ZXing
+} // namespace ZXing

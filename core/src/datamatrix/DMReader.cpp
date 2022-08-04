@@ -1,7 +1,7 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "DMReader.h"
@@ -18,7 +18,9 @@
 
 namespace ZXing::DataMatrix {
 
-Result Reader::decode(const BinaryBitmap& image) const
+Result
+Reader::decode(const BinaryBitmap& image,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 #ifdef __cpp_impl_coroutine
 	return FirstOrDefault(decode(image, 1));
@@ -36,7 +38,9 @@ Result Reader::decode(const BinaryBitmap& image) const
 }
 
 #ifdef __cpp_impl_coroutine
-Results Reader::decode(const BinaryBitmap& image, int maxSymbols) const
+Results
+Reader::decode(const BinaryBitmap& image, int maxSymbols,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 	auto binImg = image.getBitMatrix();
 	if (binImg == nullptr)

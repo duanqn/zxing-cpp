@@ -1,7 +1,7 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "MultiFormatReader.h"
@@ -46,33 +46,62 @@ MultiFormatReader::MultiFormatReader(const DecodeHints& hints) : _hints(hints)
 
 MultiFormatReader::~MultiFormatReader() = default;
 
-Result
-MultiFormatReader::read(const BinaryBitmap& image) const
+Result MultiFormatReader::read(const BinaryBitmap& image) const
 {
 	Result r;
 	for (const auto& reader : _readers) {
 		r = reader->decode(image);
-  		if (r.isValid())
+		if (r.isValid())
 			return r;
 	}
 	return _hints.returnErrors() ? r : Result();
 }
 
-Results MultiFormatReader::readMultiple(const BinaryBitmap& image, int maxSymbols) const
+Results MultiFormatReader::readMultiple(
+	const BinaryBitmap& image, int maxSymbols,
+	std::optional<std::reference_wrapper<std::vector<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>>
+		debugInfo,
+	std::optional<std::reference_wrapper<std::vector<std::chrono::milliseconds>>> time) const
 {
 	std::vector<Result> res;
 
-	for (const auto& reader : _readers) {
+	using namespace std::chrono_literals;
+	if (time.has_value()) {
+		auto& metrics = time.value().get();
+		metrics.clear();
+		metrics.resize(_readers.size(), 0ms);
+	}
+
+	if (debugInfo.has_value()) {
+		auto& info = debugInfo.value().get();
+		info.clear();
+		info.resize(_readers.size());
+	}
+
+	for (size_t i = 0; i < _readers.size(); ++i) {
+		auto&& reader = _readers[i];
 		if (image.inverted() && !reader->supportsInversion)
 			continue;
-		auto r = reader->decode(image, maxSymbols);
+		auto time_start = std::chrono::high_resolution_clock::now();
+		auto r = reader->decode(
+			image, maxSymbols,
+			debugInfo.has_value()
+				? std::ref(debugInfo.value().get()[i])
+				: std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>{});
 		if (!_hints.returnErrors()) {
-			//TODO: C++20 res.erase_if()
+			// TODO: C++20 res.erase_if()
 			auto it = std::remove_if(res.begin(), res.end(), [](auto&& r) { return !r.isValid(); });
 			res.erase(it, res.end());
 		}
 		maxSymbols -= Size(r);
 		res.insert(res.end(), std::move_iterator(r.begin()), std::move_iterator(r.end()));
+
+		auto time_end = std::chrono::high_resolution_clock::now();
+		if (time.has_value()) {
+			auto& metrics = time.value().get();
+			metrics[i] = std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start);
+		}
+
 		if (maxSymbols <= 0)
 			break;
 	}
@@ -87,4 +116,4 @@ Results MultiFormatReader::readMultiple(const BinaryBitmap& image, int maxSymbol
 	return res;
 }
 
-} // ZXing
+} // namespace ZXing

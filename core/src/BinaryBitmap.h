@@ -10,6 +10,7 @@
 #include "ImageView.h"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -30,7 +31,7 @@ class BinaryBitmap
 	bool _inverted = false;
 
 protected:
-	const ImageView _buffer;
+	ImageView _buffer;
 
 	/**
 	* Converts a 2D array of luminance data to 1 bit (true means black).
@@ -55,6 +56,41 @@ public:
 
 	void invert();
 	bool inverted() const { return _inverted; }
+
+	const ImageView& buffer(){
+		return _buffer;
+	}
+
+	void setBuffer(const ImageView& view){
+		_buffer = view;
+	}
+
+	std::vector<std::vector<bool>> getBits();
+
+	std::vector<std::vector<bool>> getRows(bool isVertical);
+};
+
+class OwningBinaryBitmap final {
+	private:
+	std::unique_ptr<BinaryBitmap> m_bitmap;
+	std::unique_ptr<uint8_t[]> m_memory;
+
+	public:
+	OwningBinaryBitmap(std::unique_ptr<BinaryBitmap>&& bitmap): m_bitmap(std::move(bitmap)){
+		m_memory = std::make_unique<uint8_t[]>(m_bitmap->width() * m_bitmap->height());
+		memcpy(m_memory.get(), m_bitmap->buffer().data(0, 0), m_bitmap->width() * m_bitmap->height());
+		const ImageView& oldView = m_bitmap->buffer();
+		ImageView newView {m_memory.get(), oldView.width(), oldView.height(), oldView.format(), oldView.rowStride(), oldView.pixStride()};
+		m_bitmap->setBuffer(newView);
+	}
+
+	std::unique_ptr<BinaryBitmap>& bitmap(){
+		return m_bitmap;
+	}
+
+	std::unique_ptr<BinaryBitmap> const& bitmap() const{
+		return m_bitmap;
+	}
 };
 
 } // ZXing

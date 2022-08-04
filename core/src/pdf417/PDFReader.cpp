@@ -1,33 +1,34 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-* Copyright 2020 Axel Waggershauser
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ * Copyright 2020 Axel Waggershauser
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #include "PDFReader.h"
-#include "PDFDetector.h"
-#include "PDFScanningDecoder.h"
-#include "PDFCodewordDecoder.h"
-#include "DecodeHints.h"
-#include "DecoderResult.h"
-#include "Result.h"
 
-#include "BitMatrixCursor.h"
 #include "BinaryBitmap.h"
 #include "BitArray.h"
+#include "BitMatrixCursor.h"
+#include "DecodeHints.h"
+#include "DecoderResult.h"
+#include "PDFCodewordDecoder.h"
+#include "PDFDetector.h"
+#include "PDFScanningDecoder.h"
 #include "Pattern.h"
+#include "Result.h"
 
-#include <vector>
-#include <cstdlib>
 #include <algorithm>
+#include <cstdlib>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #ifdef PRINT_DEBUG
-#include "PDFDecoderResultExtra.h"
-#include "PDFDecodedBitStreamParser.h"
 #include "BitMatrixIO.h"
+#include "PDFDecodedBitStreamParser.h"
+#include "PDFDecoderResultExtra.h"
+
 #include <iostream>
 #endif
 
@@ -47,8 +48,9 @@ static int GetMinWidth(const Nullable<ResultPoint>& p1, const Nullable<ResultPoi
 
 static int GetMinCodewordWidth(const std::array<Nullable<ResultPoint>, 8>& p)
 {
-	return std::min(std::min(GetMinWidth(p[0], p[4]), GetMinWidth(p[6], p[2]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN),
-					std::min(GetMinWidth(p[1], p[5]), GetMinWidth(p[7], p[3]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN));
+	return std::min(
+		std::min(GetMinWidth(p[0], p[4]), GetMinWidth(p[6], p[2]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN),
+		std::min(GetMinWidth(p[1], p[5]), GetMinWidth(p[7], p[3]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN));
 }
 
 static int GetMaxWidth(const Nullable<ResultPoint>& p1, const Nullable<ResultPoint>& p2)
@@ -61,8 +63,9 @@ static int GetMaxWidth(const Nullable<ResultPoint>& p1, const Nullable<ResultPoi
 
 static int GetMaxCodewordWidth(const std::array<Nullable<ResultPoint>, 8>& p)
 {
-	return std::max(std::max(GetMaxWidth(p[0], p[4]), GetMaxWidth(p[6], p[2]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN),
-					std::max(GetMaxWidth(p[1], p[5]), GetMaxWidth(p[7], p[3]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN));
+	return std::max(
+		std::max(GetMaxWidth(p[0], p[4]), GetMaxWidth(p[6], p[2]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN),
+		std::max(GetMaxWidth(p[1], p[5]), GetMaxWidth(p[7], p[3]) * CodewordDecoder::MODULES_IN_CODEWORD / MODULES_IN_STOP_PATTERN));
 }
 
 static Results DoDecode(const BinaryBitmap& image, bool multiple, bool tryRotate, bool returnErrors)
@@ -72,7 +75,7 @@ static Results DoDecode(const BinaryBitmap& image, bool multiple, bool tryRotate
 		return {};
 
 	auto rotate = [res = detectorResult](PointI p) {
-		switch(res.rotation) {
+		switch (res.rotation) {
 		case 90: return PointI(res.bits->height() - p.y - 1, p.x);
 		case 180: return PointI(res.bits->width() - p.x - 1, res.bits->height() - p.y - 1);
 		case 270: return PointI(p.y, res.bits->width() - p.x - 1);
@@ -82,9 +85,8 @@ static Results DoDecode(const BinaryBitmap& image, bool multiple, bool tryRotate
 
 	Results results;
 	for (const auto& points : detectorResult.points) {
-		DecoderResult decoderResult =
-			ScanningDecoder::Decode(*detectorResult.bits, points[4], points[5], points[6], points[7],
-									GetMinCodewordWidth(points), GetMaxCodewordWidth(points));
+		DecoderResult decoderResult = ScanningDecoder::Decode(*detectorResult.bits, points[4], points[5], points[6], points[7],
+															  GetMinCodewordWidth(points), GetMaxCodewordWidth(points));
 		if (decoderResult.isValid(returnErrors)) {
 			auto point = [&](int i) { return rotate(PointI(points[i].value())); };
 			Result result(std::move(decoderResult), {point(0), point(2), point(3), point(1)}, BarcodeFormat::PDF417);
@@ -117,11 +119,11 @@ struct SymbolInfo
 	operator bool() const noexcept { return nRows >= 3 && nCols >= 1 && ecLevel != -1; }
 };
 
-template<typename POINT>
+template <typename POINT>
 CodeWord ReadCodeWord(BitMatrixCursor<POINT>& cur, int expectedCluster = -1)
 {
 	auto readCodeWord = [expectedCluster](auto& cur) -> CodeWord {
-		auto np     = NormalizedPattern<8, 17>(cur.template readPattern<Pattern417>());
+		auto np = NormalizedPattern<8, 17>(cur.template readPattern<Pattern417>());
 		int cluster = (np[0] - np[2] + np[4] - np[6] + 9) % 9;
 		int code = expectedCluster == -1 || cluster == expectedCluster ? CodewordDecoder::GetCodeword(ToInt(np)) : -1;
 
@@ -149,13 +151,15 @@ static int Row(CodeWord rowIndicator)
 	return (rowIndicator.code / 30) * 3 + rowIndicator.cluster / 3;
 }
 
-constexpr FixedPattern<8, 17> START_PATTERN = { 8, 1, 1, 1, 1, 1, 1, 3 };
+constexpr FixedPattern<8, 17> START_PATTERN = {8, 1, 1, 1, 1, 1, 1, 3};
 
 #ifndef PRINT_DEBUG
-#define printf(...){}
+#define printf(...) \
+	{ \
+	}
 #endif
 
-template<typename POINT>
+template <typename POINT>
 SymbolInfo ReadSymbolInfo(BitMatrixCursor<POINT> topCur, POINT rowSkip, int colWidth, int width, int height)
 {
 	SymbolInfo res = {width, height};
@@ -191,7 +195,7 @@ SymbolInfo ReadSymbolInfo(BitMatrixCursor<POINT> topCur, POINT rowSkip, int colW
 	return res;
 }
 
-template<typename POINT>
+template <typename POINT>
 SymbolInfo DetectSymbol(BitMatrixCursor<POINT> topCur, int width, int height)
 {
 	auto pat = topCur.movedBy(height / 2 * topCur.right()).template readPatternFromBlack<Pattern417>(1, width / 3);
@@ -199,7 +203,7 @@ SymbolInfo DetectSymbol(BitMatrixCursor<POINT> topCur, int width, int height)
 		return {};
 	int colWidth = Reduce(pat);
 	auto rowSkip = std::max(colWidth / 17.f, 1.f) * bresenhamDirection(topCur.right());
-	auto botCur  = topCur.movedBy((height - 1) * topCur.right());
+	auto botCur = topCur.movedBy((height - 1) * topCur.right());
 
 	auto topSI = ReadSymbolInfo(topCur, rowSkip, colWidth, width, height);
 	auto botSI = ReadSymbolInfo(botCur, -rowSkip, colWidth, width, height);
@@ -214,11 +218,11 @@ SymbolInfo DetectSymbol(BitMatrixCursor<POINT> topCur, int width, int height)
 	return res;
 }
 
-template<typename POINT>
+template <typename POINT>
 std::vector<int> ReadCodeWords(BitMatrixCursor<POINT> topCur, SymbolInfo info)
 {
-	printf("rows: %d, cols: %d, rowHeight: %.1f, colWidth: %d, firstRow: %d, lastRow: %d, ecLevel: %d\n", info.nRows,
-		   info.nCols, info.rowHeight, info.colWidth, info.firstRow, info.lastRow, info.ecLevel);
+	printf("rows: %d, cols: %d, rowHeight: %.1f, colWidth: %d, firstRow: %d, lastRow: %d, ecLevel: %d\n", info.nRows, info.nCols,
+		   info.rowHeight, info.colWidth, info.firstRow, info.lastRow, info.ecLevel);
 	auto print = [](CodeWord c [[maybe_unused]]) { printf("%4d.%d ", c.code, c.cluster); };
 
 	auto rowSkip = topCur.right();
@@ -273,7 +277,7 @@ static Result DecodePure(const BinaryBitmap& image_)
 	int left, top, width, height;
 	if (!image.findBoundingBox(left, top, width, height, 9) || (width < 3 * 17 && height < 3 * 17))
 		return {};
-	int right  = left + width - 1;
+	int right = left + width - 1;
 	int bottom = top + height - 1;
 
 	// counter intuitively, using a floating point cursor is about twice as fast an integer one (on an AVX architecture)
@@ -308,7 +312,8 @@ static Result DecodePure(const BinaryBitmap& image_)
 }
 
 Result
-Reader::decode(const BinaryBitmap& image) const
+Reader::decode(const BinaryBitmap& image,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 	if (_hints.isPure()) {
 		auto res = DecodePure(image);
@@ -321,10 +326,12 @@ Reader::decode(const BinaryBitmap& image) const
 	return FirstOrDefault(DoDecode(image, false, _hints.tryRotate(), _hints.returnErrors()));
 }
 
-Results Reader::decode(const BinaryBitmap& image, [[maybe_unused]] int maxSymbols) const
+Results
+Reader::decode(const BinaryBitmap& image, [[maybe_unused]] int maxSymbols,
+			   std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>) const
 {
 	return DoDecode(image, true, _hints.tryRotate(), _hints.returnErrors());
 }
 
-} // Pdf417
-} // ZXing
+} // namespace Pdf417
+} // namespace ZXing

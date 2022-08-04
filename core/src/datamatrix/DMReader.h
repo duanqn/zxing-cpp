@@ -1,7 +1,7 @@
 /*
-* Copyright 2016 Nu-book Inc.
-* Copyright 2016 ZXing authors
-*/
+ * Copyright 2016 Nu-book Inc.
+ * Copyright 2016 ZXing authors
+ */
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -15,9 +15,15 @@ class Reader : public ZXing::Reader
 public:
 	using ZXing::Reader::Reader;
 
-	Result decode(const BinaryBitmap& image) const override;
+	Result decode(
+		const BinaryBitmap& image,
+		[[maybe_unused]] std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>
+			debugInfo = {}) const override;
 #ifdef __cpp_impl_coroutine
-	Results decode(const BinaryBitmap& image, int maxSymbols) const override;
+	Results decode(
+		const BinaryBitmap& image, int maxSymbols,
+		[[maybe_unused]] std::optional<std::reference_wrapper<std::map<std::pair<int, bool>, std::pair<std::vector<uint16_t>, bool>>>>
+			debugInfo = {}) const override;
 #endif
 };
 
