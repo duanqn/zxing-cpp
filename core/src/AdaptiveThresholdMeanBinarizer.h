@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "BinaryBitmap.h"
+#include "GlobalHistogramBinarizer.h"
 
 namespace ZXing {
 
@@ -15,7 +15,7 @@ namespace ZXing {
 *
 * @author Qingnan.Duan@microsoft.com (Qingnan Duan)
 */
-class AdaptiveThresholdMeanBinarizer: public BinaryBitmap
+class AdaptiveThresholdMeanBinarizer: public GlobalHistogramBinarizer
 {
 public:
     explicit AdaptiveThresholdMeanBinarizer(const ImageView& buffer);
@@ -25,6 +25,9 @@ public:
 
 protected:
 	std::shared_ptr<const BitMatrix> getBlackMatrix() const override;
+
+private:
+	const static int BLOCK_SIZE = 25;
 };
 
 } // ZXing

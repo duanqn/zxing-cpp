@@ -8,12 +8,17 @@
 
 namespace ZXing {
 
-AdaptiveThresholdMeanBinarizer::AdaptiveThresholdMeanBinarizer(const ImageView& buffer) : BinaryBitmap(buffer) {}
+AdaptiveThresholdMeanBinarizer::AdaptiveThresholdMeanBinarizer(const ImageView& buffer) : GlobalHistogramBinarizer(buffer) {}
 AdaptiveThresholdMeanBinarizer::~AdaptiveThresholdMeanBinarizer() = default;
 
 std::shared_ptr<const BitMatrix> AdaptiveThresholdMeanBinarizer::getBlackMatrix() const
 {
+    if(_buffer.width() > BLOCK_SIZE && _buffer.height() > BLOCK_SIZE){
 
+    }
+    else{
+        return GlobalHistogramBinarizer::getBlackMatrix();
+    }
 }
 
 bool AdaptiveThresholdMeanBinarizer::getPatternRow(int row, int rotation, PatternRow &res) const
